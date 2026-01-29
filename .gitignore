@@ -1,0 +1,58 @@
+# --- Minecraft ---
+PlayersDirectory
+usercache.json
+output.txt
+
+# --- Основное (Python) ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# --- Секреты (КРИТИЧЕСКИ ВАЖНО) ---
+.env
+*.env
+# Если будешь хранить ключи VPN (например, JSON от Outline) в файлах
+/services/keys/*.json
+/services/certs/
+secrets.py
+
+# --- База данных ---
+# Если используешь SQLite
+*.sqlite3
+*.db
+# Если используешь миграции (Alembic), папка alembic/ остается,
+# но логи и временные конфиги можно скрыть
+
+# --- Логи и временные файлы ---
+logs/
+*.log
+*.tmp
+# Позволяет Git отслеживать папку logs, но игнорировать её содержимое
+!logs/.gitkeep
+
+# --- IDE (Настройки редакторов) ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store (Mac)
+Thumbs.db (Windows)
+
+# --- Дистрибуция и сборка ---
+dist/
+build/
+*.egg-info/
+.installed.cfg
+bin/
+
+# --- Тесты ---
+.pytest_cache/
+.coverage
+htmlcov/
