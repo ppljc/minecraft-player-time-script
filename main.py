@@ -45,18 +45,18 @@ def format_play_time(seconds: int):
     hours, seconds = divmod(seconds, 60 * 60)
     minutes, seconds = divmod(seconds, 60)
 
-    output_string = ""
+    output_string = []
 
     if days:
-        output_string += f"{int(days)} days "
+        output_string.append(f"{int(days)} days")
     if hours:
-        output_string += f"{int(hours)} hours "
+        output_string.append(f"{int(hours)} hours")
     if minutes:
-        output_string += f"{int(minutes)} minutes "
+        output_string.append(f"{int(minutes)} minutes")
 
-    output_string += f"{round(seconds)} seconds"
+    output_string.append(f"{round(seconds)} seconds")
 
-    return output_string
+    return " ".join(output_string)
 
 
 def main():
@@ -132,14 +132,6 @@ def main():
         print("ERROR: Usercache file is not valid")
         return
 
-    if not isinstance(calculation_format, str):
-        print("ERROR: Format is not a string")
-        return
-
-    if server_age and not isinstance(server_age, int):
-        print("ERROR: Server age is not an integer")
-        return
-
     print("DEBUG: Preparing usercache file")
     uuid_user_dict, usercache_list_len = prepare_usercache_file(usercache_file_path)
     if len(uuid_user_dict) == usercache_list_len:
@@ -160,7 +152,12 @@ def main():
             with open(player_file_path, "r", encoding="utf-8") as player_file_read:
                 player_file_read_json = json.load(player_file_read)
 
-                username = uuid_user_dict[uuid]
+                username = uuid_user_dict.get(uuid)
+
+                if not username:
+                    print(f"ERROR: Player {uuid} does not exist in usercache")
+                    break
+
                 user_stats = player_file_read_json.get("stats")
                 user_stats_custom = user_stats.get("minecraft:custom")
                 play_time = user_stats_custom.get("minecraft:play_time") / dividers[calculation_format]
