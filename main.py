@@ -5,6 +5,7 @@ import argparse  # для аргументов при запуске
 from pathlib import Path
 
 dividers = {  # делители для выбранного режима
+    "days": 20 * 60 * 60 * 24,  # тики в секунду * секунды в минуте * минуты в часе * часы в дне
     "hours": 20 * 60 * 60,
     "minutes": 20 * 60,
     "seconds": 20,
@@ -12,19 +13,51 @@ dividers = {  # делители для выбранного режима
     "full": 20  # так же в секундах
 }
 
-def get_name_by_uuid(uuid: str, usercache_file_path: Path):
-    '''
-    Получение имени игрока по UUID из файла кэша
-    :param uuid: Minecraft UUID
-    :param usercache_file_path: Path to usercache file
-    :return: Minecraft username
-    '''
+def prepare_usercache_file(usercache_file_path: Path):
+    uuid_user_dict = {}
+
     with open(usercache_file_path, "r", encoding="utf-8") as usercache_file:
         usercache_file_json = json.load(usercache_file)
+
+        usercache_file_json_len = len(usercache_file_json)
+
         for entry in usercache_file_json:
-            if entry["uuid"] == uuid:
-                return entry["name"]
-    return None
+            uuid = entry.get("uuid")
+            name = entry.get("name")
+            if uuid and name:
+                uuid_user_dict[uuid] = name
+
+    return uuid_user_dict, usercache_file_json_len
+
+
+def is_usercache_valid(usercache_file_path: Path):
+    try:
+        with open(usercache_file_path, "r", encoding="utf-8") as usercache_file:
+            json.load(usercache_file)
+        return True
+    except json.decoder.JSONDecodeError:
+        print("ERROR: Usercache file is not valid json")
+        return False
+
+
+def format_play_time(seconds: int):
+    days, seconds = divmod(seconds, 60 * 60 * 24)
+    hours, seconds = divmod(seconds, 60 * 60)
+    minutes, seconds = divmod(seconds, 60)
+
+    output_string = ""
+
+    if days:
+        output_string += f"{int(days)} days "
+    if hours:
+        output_string += f"{int(hours)} hours "
+    if minutes:
+        output_string += f"{int(minutes)} minutes "
+
+    output_string += f"{round(seconds)} seconds"
+
+    return output_string
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -37,11 +70,15 @@ def main():
 
     parser.add_argument("-uc", "--usercache", type=str, help="Usercache file for usernames match", required=True)
 
+    parser.add_argument("-sa", "--serverAge", type=int, help="Server age in days", required=False)
+
     args = parser.parse_args()
 
     players_directory_path = Path(args.playersDirectory).resolve()
+    calculation_format = args.format
     output_file_path = Path(args.outputFile).resolve()
     usercache_file_path = Path(args.usercache).resolve()
+    server_age = args.serverAge
 
     print(f"DEBUG: {players_directory_path}")
     print(f"DEBUG: {output_file_path}")
@@ -91,6 +128,26 @@ def main():
         print("ERROR: Usercache file is empty")
         return
 
+    if not is_usercache_valid(usercache_file_path):
+        print("ERROR: Usercache file is not valid")
+        return
+
+    if not isinstance(calculation_format, str):
+        print("ERROR: Format is not a string")
+        return
+
+    if server_age and not isinstance(server_age, int):
+        print("ERROR: Server age is not an integer")
+        return
+
+    print("DEBUG: Preparing usercache file")
+    uuid_user_dict, usercache_list_len = prepare_usercache_file(usercache_file_path)
+    if len(uuid_user_dict) == usercache_list_len:
+        print("DEBUG: Usercache file prepared successfully")
+    else:
+        print("ERROR: Usercache file preparetion failed")
+        return
+
     players_files = os.listdir(players_directory_path)
 
     players_stats = {}
@@ -103,20 +160,52 @@ def main():
             with open(player_file_path, "r", encoding="utf-8") as player_file_read:
                 player_file_read_json = json.load(player_file_read)
 
-                username = get_name_by_uuid(uuid, usercache_file_path)
-                play_time = player_file_read_json['stats']['minecraft:custom']['minecraft:play_time'] / dividers[args.format]
+                username = uuid_user_dict[uuid]
+                user_stats = player_file_read_json.get("stats")
+                user_stats_custom = user_stats.get("minecraft:custom")
+                play_time = user_stats_custom.get("minecraft:play_time") / dividers[calculation_format]
 
-                players_stats[username] = { "play_time": round(play_time, 2), "avg": play_time / 34 }
+                output_string = f"PLAYER: {username}\n"
 
-                print(f"DEBUG: username = {username}, hours = {int(player_file_read_json['stats']['minecraft:custom']['minecraft:play_time']) / (20 * 60 * 60)}")
+                if calculation_format == "full":
+                    play_time_formatted = format_play_time(play_time)
+                    output_string += f"PLAY_TIME: {play_time_formatted}\n"
+                elif calculation_format == "average":
+                    pass
+                else:
+                    output_string += f"PLAY_TIME: {round(play_time, 2)} {calculation_format}\n"
+
+                if server_age:
+                    play_time_average = play_time / server_age
+                    if calculation_format == "full" or calculation_format == "average":
+                        play_time_average_formatted = format_play_time(play_time_average)
+                        output_string += f"PLAT_TIME_AVERAGE: {play_time_average_formatted}\n"
+                    else:
+                        output_string += f"PLAY_TIME_AVERAGE: {round(play_time_average, 2)} {calculation_format}\n"
+
+                output_string += "\n"
+
+                players_stats[uuid] = { "play_time": play_time, "output_string": output_string }
+
+                print(f"DEBUG: {players_stats[uuid]}")
         except PermissionError:
-            print("ERROR: Dont have permission to read players files")
+            print(f"ERROR: Dont have permission to read players {uuid} file")
+            return
+        except json.decoder.JSONDecodeError:
+            print(f"ERROR: Players {uuid} file is not valid json")
             return
 
-    players_stats = dict(sorted(players_stats.items(), key=lambda item: item[1]["play_time"], reverse=True))
+    players_stats = dict(sorted(players_stats.items(), key=lambda item: item[1]["play_time"], reverse=True))  # сортировка словаря по значению play_time от большего к меньшему
 
-    for key, value in players_stats.items():
-        print(f"{key}: {value}")
+    with open(output_file_path, "w", encoding="utf-8") as output_file:
+        header_string = (
+            f"SERVER AGE: {server_age} days\n"
+            f"UNIQUE PLAYERS COUNT: {len(players_stats)}\n\n"
+        )
+        output_file.write(header_string)
+
+        for key, value in players_stats.items():
+            output_file.write(value["output_string"])
 
 
 if __name__ == "__main__":
