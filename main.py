@@ -156,11 +156,11 @@ def main():
 
                 if not username:
                     print(f"ERROR: Player {uuid} does not exist in usercache")
-                    break
+                    continue
 
-                user_stats = player_file_read_json.get("stats")
-                user_stats_custom = user_stats.get("minecraft:custom")
-                play_time = user_stats_custom.get("minecraft:play_time") / dividers[calculation_format]
+                user_stats = player_file_read_json.get("stats", {})
+                user_stats_custom = user_stats.get("minecraft:custom", {})
+                play_time = user_stats_custom.get("minecraft:play_time", 0) / dividers[calculation_format]
 
                 output_string = f"PLAYER: {username}\n"
 
